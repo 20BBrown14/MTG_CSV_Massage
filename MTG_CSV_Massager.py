@@ -6,7 +6,8 @@ import csv
 
 # Local imports
 from bcolors import color_print, warning_print, error_print, info_print, success_print, instruction_print, color_input, colors
-from csv_formats import csv_formats
+import csv_formats
+from Deckbox import Deckbox
 
 INPUT_FILE_DIRECTORY_NAME = './input_csv_files'
 OUTPUT_FILE_DIRECTORY_NAME = './output_csv_files'
@@ -127,7 +128,7 @@ def get_input_files(has_exclusions):
 
   while(not main_input_file):
     instruction_print('Please select the main input file')
-    main_input_file = '%s/%s' % (INPUT_FILE_DIRECTORY_NAME, get_paginated_input(output_pages))
+    main_input_file = '%s' % get_paginated_input(output_pages)
     if(not main_input_file):
       warning_print('Main input file cannot be empty')
 
@@ -145,24 +146,28 @@ def get_input_files(has_exclusions):
     else:
       more_exclusions = False
 
-  info_print('Main input file selected: %s' % main_input_file)
+  info_print('Main input file selected: %s/%s' % (INPUT_FILE_DIRECTORY_NAME, main_input_file))
   info_print('Files that include exclusions: %s' % exclusion_files)
 
 # Asks user if they have files that are excluded
 def have_files_that_include_exclusions():
   return color_input('Do you have files that include exclusions? [y/N]:') == 'y'
 
+def should_split_file():
+  if(color_input('Should the file be split into smaller pieces? [Y/n]') == 'n'):
+    return False
+  return color_input('Rows per file (Default 450):') or 450
+
 def main():
-  print(csv_formats.SUPPORTED_INPUT_CSV_FORMATS)
   instruction_print("Welcome to the MTG_CSV_Massager")
   clear_output_directory()
   have_exclusions = have_files_that_include_exclusions()
   get_input_files(have_exclusions)
+  row_limit = should_split_file()
 
-  with open(main_input_file, 'r') as csvfile:
-    csvreader = csv.reader(csvfile)
-    fields = next(csvreader)
-    print(fields)
+  with open('%s/%s' % (INPUT_FILE_DIRECTORY_NAME, main_input_file), 'r') as csvfile:
+    deckbox = Deckbox(csvfile)
+    deckbox.to_card_kingdom(row_limit, '%s/%s' % (OUTPUT_FILE_DIRECTORY_NAME, main_input_file))
 
 if __name__ == '__main__':
   main()
