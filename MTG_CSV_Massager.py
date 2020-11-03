@@ -70,7 +70,7 @@ def clear_output_directory():
   should_clear_output_files = ''
   output_dir_files = get_files_in_directory(OUTPUT_FILE_DIRECTORY_NAME)
   if len(output_dir_files) > 0:
-    should_clear_output_files = input('Would you like to clear the output directory? [y/N]: ')
+    should_clear_output_files = color_input('Would you like to clear the output directory? [y/N]: ')
   if should_clear_output_files == 'y':
     delete_files(output_dir_files)
 
@@ -158,6 +158,83 @@ def should_split_file():
     return False
   return color_input('Rows per file (Default 450):') or 450
 
+def filter_exclusions(main_csv_file):
+  fields_to_include = [
+    'Count',
+    'Name',
+    'Edition',
+    'Card Number',
+    'Condition',
+    'Language',
+    'Foil',
+    'Price',
+  ]
+
+  field_indexes = []
+
+  main_csv_reader = csv.reader(main_csv_file)
+  csv_fields = next(main_csv_reader)
+
+  main_csv_rows = []
+
+  for field in fields_to_include:
+    field_indexes.append(csv_fields.index(field))
+
+  for row in main_csv_reader:
+    if (not len(row)):
+      continue
+    main_csv_row = []
+    for field_index in field_indexes:
+      main_csv_row.append(row[field_index])
+    main_csv_rows.append(main_csv_row)
+
+  if (not len(exclusion_files)):
+    return csv_fields, main_csv_rows
+
+  rows_to_exclude = []
+  # print(exclusion_files)
+  for exclusion_file in exclusion_files:
+    print(exclusion_file)
+    with open(exclusion_file, 'r') as csvfile:
+      exclusion_file_reader = csv.reader(csvfile)
+      exclusion_fields = next(exclusion_file_reader)
+      for included_field in fields_to_include:
+        if (not included_field in exclusion_fields):
+          error_print('Exclusion file %s does not include all fields of main input CSV file. Exitting.' % exclusion_file)
+          exit('1')
+
+      for row in exclusion_file_reader:
+        if (not len(row)):
+          continue
+        row_to_exclude = []
+        for field in fields_to_include:
+          row_to_exclude.append(row[exclusion_fields.index(field)])
+        if (not row_to_exclude in rows_to_exclude):
+          rows_to_exclude.append(row_to_exclude)
+
+  print(len(main_csv_rows))
+
+  for excluded_row in rows_to_exclude:
+    for index, main_row in enumerate(main_csv_rows):
+      
+      if (
+        excluded_row[1] == main_row[1] and
+        excluded_row[2] == main_row[2] and
+        excluded_row[3] == main_row[3] and
+        excluded_row[4] == main_row[4] and
+        excluded_row[5] == main_row[5] and
+        excluded_row[6] == main_row[6]):
+        main_csv_rows[index][0] = str(int(main_csv_rows[index][0]) - int(excluded_row[0]))
+        if (main_csv_rows[index][0] == '0'):
+          main_csv_rows.remove(main_csv_rows[index])
+        break
+
+  print(len(main_csv_rows))
+
+  return fields_to_include, main_csv_rows   
+      
+    
+
 def main():
   instruction_print("Welcome to the MTG_CSV_Massager")
   clear_output_directory()
@@ -166,7 +243,8 @@ def main():
   row_limit = should_split_file()
 
   with open('%s/%s' % (INPUT_FILE_DIRECTORY_NAME, main_input_file), 'r') as csvfile:
-    deckbox = Deckbox(csvfile)
+    csv_fields, filtered_csv_rows = filter_exclusions(csvfile)
+    deckbox = Deckbox(csv_fields, filtered_csv_rows)
     deckbox.to_card_kingdom(row_limit, '%s/%s' % (OUTPUT_FILE_DIRECTORY_NAME, main_input_file))
 
 if __name__ == '__main__':

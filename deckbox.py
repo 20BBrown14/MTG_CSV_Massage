@@ -26,7 +26,15 @@ fields = {
 
 def db_name_set_to_ck_name_set(old_name, old_set):
   if(old_set == 'Friday Night Magic'):
-    return '%s (FNM FOIL)', 'Promotional'
+    return '%s (FNM FOIL)' % old_name, 'Promotional'
+  if('Prerelease Events' in old_set):
+    return '%s (Prerelease foil)' % old_name, 'Promotional'
+  if(old_set == 'Welcome Deck 2016'):
+    return '%s (Welcome 2016)' % old_name, 'Promotional'
+  if(old_set == 'Zendikar Rising' and '//' in old_name):
+    return old_name[:old_name.index(' // ')], old_set
+  if(old_set == 'Launch Parties'):
+    return '%s (Launch Foil)' % old_name, 'Promotional'
   return db_name_to_ck_name(old_name), db_set_to_ck_set(old_set)
 
 def db_set_to_ck_set(old_set):
@@ -34,10 +42,18 @@ def db_set_to_ck_set(old_set):
     return 'Masterpiece Series: Invocations'
   if(old_set == 'Archenemy: Nicol Bolas'):
     return 'Archenemy - Nicol Bolas'
-  if(old_set == 'Commander Anthology Volume Ii'):
+  if(old_set == 'Commander Anthology Volume Ii' or old_set == 'Commander Anthology Volume II'):
     return 'Commander Anthology Vol. II'
   if('Extras' in old_set):
     return ''
+  if(old_set == 'Ravnica: City of Guilds'):
+    return 'Ravnica'
+  if(old_set == 'The List' or old_set == 'Myster Booster'):
+    return 'Mystery Booster/The List'
+  if(old_set == 'Zendikar Rising Commander'):
+    return 'Zendikar Rising Commander Decks'
+  if(old_set == 'Ravnica Allegiance Guild Kit'):
+    return 'Ravnica Allegiance: Guild Kits'
   
   return old_set
 
@@ -53,22 +69,22 @@ def db_name_to_ck_name(old_name):
   return old_name
 
 class Deckbox:
-  def __init__(self, csvfile):
-    self.csvfile = csvfile
+  def __init__(self, csv_fields, csv_rows):
+    self.csv_fields = csv_fields
+    self.csv_rows = csv_rows
 
   def to_card_kingdom(self, row_limit, output_file_name='ck_massaged'):
     ck_fields = Card_kingdom.fields
-    csvreader = csv.reader(self.csvfile)
-    csv_fields = next(csvreader)
+    # csvreader = csv.reader(self.csvfile)
 
-    count_index = csv_fields.index(fields['COUNT'])
-    foil_index = csv_fields.index(fields['FOIL'])
-    name_index = csv_fields.index(fields['NAME'])
-    set_index = csv_fields.index(fields['SET'])
+    count_index = self.csv_fields.index(fields['COUNT'])
+    foil_index = self.csv_fields.index(fields['FOIL'])
+    name_index = self.csv_fields.index(fields['NAME'])
+    set_index = self.csv_fields.index(fields['SET'])
 
     new_rows = []
     new_rows.append(ck_fields.values())
-    for row in csvreader:
+    for row in self.csv_rows:
       if(len(row) <= 0):
         continue
       card_name, card_set = db_name_set_to_ck_name_set(row[name_index], row[set_index])

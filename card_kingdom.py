@@ -1,8 +1,8 @@
 fields = {
-  'COUNT': 'quantity',
-  'FOIL': 'foil',
   'NAME': 'card name',
-  'SET': 'edition'
+  'SET': 'edition',
+  'FOIL': 'foil',
+  'COUNT': 'quantity',
 }
 
 class Card_kingdom:
