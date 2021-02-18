@@ -3,6 +3,9 @@ from os import listdir, remove, path
 from os.path import isfile, join
 from math import ceil
 import csv
+import requests
+import json
+import time
 
 # Local imports
 from bcolors import color_print, warning_print, error_print, info_print, success_print, instruction_print, color_input, colors
@@ -189,12 +192,10 @@ def filter_exclusions(main_csv_file):
     main_csv_rows.append(main_csv_row)
 
   if (not len(exclusion_files)):
-    return csv_fields, main_csv_rows
+    return fields_to_include, main_csv_rows
 
   rows_to_exclude = []
-  # print(exclusion_files)
   for exclusion_file in exclusion_files:
-    print(exclusion_file)
     with open(exclusion_file, 'r') as csvfile:
       exclusion_file_reader = csv.reader(csvfile)
       exclusion_fields = next(exclusion_file_reader)
@@ -209,14 +210,12 @@ def filter_exclusions(main_csv_file):
         row_to_exclude = []
         for field in fields_to_include:
           row_to_exclude.append(row[exclusion_fields.index(field)])
-        if (not row_to_exclude in rows_to_exclude):
-          rows_to_exclude.append(row_to_exclude)
+        rows_to_exclude.append(row_to_exclude)
 
-  print(len(main_csv_rows))
+  filtered_csv_rows = []
 
   for excluded_row in rows_to_exclude:
     for index, main_row in enumerate(main_csv_rows):
-      
       if (
         excluded_row[1] == main_row[1] and
         excluded_row[2] == main_row[2] and
@@ -225,14 +224,90 @@ def filter_exclusions(main_csv_file):
         excluded_row[5] == main_row[5] and
         excluded_row[6] == main_row[6]):
         main_csv_rows[index][0] = str(int(main_csv_rows[index][0]) - int(excluded_row[0]))
-        if (main_csv_rows[index][0] == '0'):
-          main_csv_rows.remove(main_csv_rows[index])
-        break
 
-  print(len(main_csv_rows))
+  for main_row in main_csv_rows:
+    if(int(main_row[0]) > 0):
+      filtered_csv_rows.append(main_row)        
 
-  return fields_to_include, main_csv_rows   
-      
+  return fields_to_include, filtered_csv_rows 
+
+def search_for_value(csv_fields, filtered_card_data):
+  sets_url = "https://api.scryfall.com/sets"
+  headers = {"Accept": "application/json"}
+  set_info = json.loads(requests.request("GET", sets_url, headers=headers).text)['data']
+
+  cards_to_price = []
+  value_card_data = [['Count', 'Name', 'Edition', 'Foil', 'Price', 'Card Number']]
+
+  count_index = csv_fields.index('Count')
+  name_index = csv_fields.index('Name')
+  set_index = csv_fields.index('Edition')
+  foil_index = csv_fields.index('Foil')
+  card_number_index = csv_fields.index('Card Number')
+
+  def price_cards():
+    pricing_url = "https://api.scryfall.com/cards/collection"
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    # check price
+    price_request_body = {"identifiers": []}
+    for card_to_price in cards_to_price:
+      price_request_body['identifiers'].append({
+        "collector_number": card_to_price[4],
+        "set": card_to_price[2],
+      })
+    time.sleep(1)
+    card_data = requests.request("POST", pricing_url, headers=headers, json=price_request_body)
+    if(card_data.status_code != 200):
+      info_print(card_data.json())
+      return
+    card_data = json.loads(card_data.text)["data"] if json.loads(card_data.text)["data"] else []
+    for price in card_data:
+      is_card_foil = False
+      for card in cards_to_price:
+        if(card[1] == price["name"] and card[2] == price["set"] and card[4] == price["collector_number"]):
+          is_card_foil = card[3]
+          card_price = price["prices"]["usd_foil"] if is_card_foil else price["prices"]["usd"]
+          if(card_price == None):
+            warning_print('CARD PRICE IS NULL %s' % card[1])
+          if(card_price and float(card_price) > 1.00):
+            value_card_data.append([
+              card[0],
+              card[1],
+              price["set_name"],
+              is_card_foil,
+              card_price,
+              card[4],
+            ])
+          cards_to_price.remove(card)
+          break
+    # cards_to_price = []
+  for row in filtered_card_data:
+    if(len(cards_to_price) >= 70):
+      price_cards()
+      cards_to_price = []
+    else:
+      card_set = row[set_index].lower()
+      for set_data in set_info:
+        set_name = set_data['name'].lower()
+        if card_set == set_name:
+          cards_to_price.append([
+            row[count_index],
+            row[name_index],
+            set_data['code'],
+            row[foil_index],
+            row[card_number_index]
+          ])
+          break
+  
+  if(len(cards_to_price) > 0):
+    price_cards()
+    cards_to_price = []
+  if(len(value_card_data) > 0):
+    with open('%s/value_output.csv' % OUTPUT_FILE_DIRECTORY_NAME, 'w') as csvfile_writer:
+        csvwriter = csv.writer(csvfile_writer)
+        csvwriter.writerows(value_card_data)
+        info_print('Successfully wrote %s' % '%s/value_output.csv' % OUTPUT_FILE_DIRECTORY_NAME)  
+
     
 
 def main():
@@ -244,6 +319,7 @@ def main():
 
   with open('%s/%s' % (INPUT_FILE_DIRECTORY_NAME, main_input_file), 'r') as csvfile:
     csv_fields, filtered_csv_rows = filter_exclusions(csvfile)
+    search_for_value(csv_fields, filtered_csv_rows)
     deckbox = Deckbox(csv_fields, filtered_csv_rows)
     deckbox.to_card_kingdom(row_limit, '%s/%s' % (OUTPUT_FILE_DIRECTORY_NAME, main_input_file))
 
