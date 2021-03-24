@@ -68,7 +68,9 @@ def db_set_to_ck_set(old_set, card_number, set_info):
   })
   card_data = requests.request("POST", pricing_url, headers=headers, json=card_request_body)
   if(card_data.status_code != 200):
-      info_print(card_data.json())
+      info_print('~~~~ Error while getting card data ~~~~~')
+      info_print('Status code ** %d ** for card Card Number: %s, Set: %s' % (card_data.status_code, card_number, abbr_set))
+      info_print('Response:\n%s\n\n' % card_data.text)
       return old_set
   card_data = json.loads(card_data.text)["data"][0] if json.loads(card_data.text)["data"] else []
   frame_data = card_data['frame_effects'] if 'frame_effects' in card_data else []
