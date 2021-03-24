@@ -10,7 +10,7 @@ import time
 # Local imports
 from bcolors import color_print, warning_print, error_print, info_print, success_print, instruction_print, color_input, colors
 import csv_formats
-from Deckbox import Deckbox
+from deckbox import Deckbox
 
 INPUT_FILE_DIRECTORY_NAME = './input_csv_files'
 OUTPUT_FILE_DIRECTORY_NAME = './output_csv_files'
@@ -28,6 +28,9 @@ main_input_file = ''
 
 global exclusion_files
 exclusion_files = []
+
+global minimum_value
+minimum_value = None
 
 # Determine if file is csv
 # param file: string containg file name
@@ -161,6 +164,28 @@ def should_split_file():
     return False
   return color_input('Rows per file (Default 450):') or 450
 
+def get_value_minimum():
+  global minimum_value
+
+  if(color_input('Should value be searched? [Y/n]') == 'n'):
+    minimum_value = -1
+  while(not minimum_value):
+    try:
+      user_input = color_input('What minimum value should be searched for? (Default $1.00)')
+      if(user_input == ''):
+        minimum_value = 1.00
+        continue
+      
+      minimum_value = float(user_input)
+    except:
+      minimum_value = None
+  
+def get_should_massage_file():
+  if(color_input('Should the file be massaged to Card Kingdom format? [Y/n]') == 'n'):
+    return False
+
+  return True
+
 def filter_exclusions(main_csv_file):
   fields_to_include = [
     'Count',
@@ -237,7 +262,8 @@ def search_for_value(csv_fields, filtered_card_data):
   set_info = json.loads(requests.request("GET", sets_url, headers=headers).text)['data']
 
   cards_to_price = []
-  value_card_data = [['Count', 'Name', 'Edition', 'Foil', 'Price', 'Card Number']]
+  value_card_data = [['Count', 'Name', 'Edition', 'Mana Cost', 'Rarity', 'Foil', 'Card Number', 'Price']]
+  cards_with_no_data = [['Count', 'Name', 'Edition', 'Mana Cost', 'Rarity', 'Foil', 'Card Number', 'Price']]
 
   count_index = csv_fields.index('Count')
   name_index = csv_fields.index('Name')
@@ -268,20 +294,33 @@ def search_for_value(csv_fields, filtered_card_data):
           is_card_foil = card[3]
           card_price = price["prices"]["usd_foil"] if is_card_foil else price["prices"]["usd"]
           if(card_price == None):
-            warning_print('CARD PRICE IS NULL %s' % card[1])
-          if(card_price and float(card_price) > 1.00):
+            cards_with_no_data.append([
+              card[0],
+              card[1],
+              price["set_name"] or "SET NOT AVAILABLE",
+              price["mana_cost"] if "mana_cost" in price.keys() else ("%s // %s" % (price["card_faces"][0]["mana_cost"] or 'NO COST', price["card_faces"][1]["mana_cost"] or 'NO COST')) if price["card_faces"] else "COST NOT AVAILABLE",
+              price["rarity"] or "RARITY NOT AVAILABLE",
+              is_card_foil,
+              card[4],
+              card_price or 'PRICE NOT AVAILABLE',
+            ])
+          if(card_price and float(card_price) > minimum_value):
             value_card_data.append([
               card[0],
               card[1],
               price["set_name"],
+              price["mana_cost"] if "mana_cost" in price.keys() else "%s // %s" % (price["card_faces"][0]["mana_cost"] or 'NO COST', price["card_faces"][1]["mana_cost"] or 'NO COST'),
+              price["rarity"],
               is_card_foil,
-              card_price,
               card[4],
+              card_price,
             ])
           cards_to_price.remove(card)
           break
     # cards_to_price = []
-  for row in filtered_card_data:
+  for index, row in enumerate(filtered_card_data):
+    complete_percent = round(float((index/len(filtered_card_data)) * 100), 2)
+    info_print("========  {:.2f}% complete getting card value  ========".format(complete_percent), "\r")
     if(len(cards_to_price) >= 70):
       price_cards()
       cards_to_price = []
@@ -316,12 +355,18 @@ def main():
   have_exclusions = have_files_that_include_exclusions()
   get_input_files(have_exclusions)
   row_limit = should_split_file()
+  get_value_minimum()
+  should_massage = get_should_massage_file()
 
   with open('%s/%s' % (INPUT_FILE_DIRECTORY_NAME, main_input_file), 'r') as csvfile:
     csv_fields, filtered_csv_rows = filter_exclusions(csvfile)
-    search_for_value(csv_fields, filtered_csv_rows)
-    deckbox = Deckbox(csv_fields, filtered_csv_rows)
-    deckbox.to_card_kingdom(row_limit, '%s/%s' % (OUTPUT_FILE_DIRECTORY_NAME, main_input_file))
+    if(not minimum_value == -1):
+      search_for_value(csv_fields, filtered_csv_rows)
+    if(should_massage):
+      deckbox = Deckbox(csv_fields, filtered_csv_rows)
+      deckbox.to_card_kingdom(row_limit, '%s/%s' % (OUTPUT_FILE_DIRECTORY_NAME, main_input_file))
+
+  success_print('Run Complete!')
 
 if __name__ == '__main__':
   main()

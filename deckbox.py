@@ -1,5 +1,5 @@
 import csv
-from Card_kingdom import Card_kingdom
+from card_kingdom import Card_kingdom
 import os
 from bcolors import info_print
 import requests
@@ -48,11 +48,15 @@ def db_name_set_to_ck_name_set(old_name, old_set, card_number, set_info):
   return db_name_to_ck_name(old_name), db_set_to_ck_set(old_set, card_number, set_info)
 
 def db_set_to_ck_set(old_set, card_number, set_info):
+  abbr_set = None
   for set_data in set_info:
     set_name = set_data['name'].lower()
     if old_set.lower() == set_name:
       abbr_set = set_data['code']
       break
+
+  if(not abbr_set):
+    return old_set
 
   pricing_url = "https://api.scryfall.com/cards/collection"
   headers = {"Accept": "application/json", "Content-Type": "application/json"}
@@ -122,10 +126,13 @@ class Deckbox:
 
     new_rows = []
     new_rows.append(ck_fields.values())
-    for row in self.csv_rows:
+    for index, row in enumerate(self.csv_rows):
+      complete_percent = round(float((index/len(self.csv_rows)) * 100), 2)
+      info_print("========  {:.2f}% complete massaging deckbox file  ========".format(complete_percent), "\r")
+
       if(len(row) <= 0):
         continue
-      time.sleep(.5)
+      time.sleep(.2)
       card_name, card_set = db_name_set_to_ck_name_set(row[name_index], row[set_index], row[card_number_index], self.set_info)
 
       if(not card_name or not card_set):

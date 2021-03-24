@@ -13,8 +13,8 @@ colors = {
 def color_print(message, color):
   print(f"{color}{message}{colors['ENDC']}")
 
-def info_print(message):
-  print(f"{colors['OKCYAN']}{message}{colors['ENDC']}")
+def info_print(message, end='\n'):
+  print(f"{colors['OKCYAN']}{message}{colors['ENDC']}", end=end)
 
 def warning_print(message):
   print(f"{colors['WARNING']}{message}{colors['ENDC']}")
