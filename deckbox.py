@@ -45,6 +45,8 @@ def db_name_set_to_ck_name_set(old_name, old_set, card_number, set_info):
     return old_name[:old_name.index(' // ')], old_set
   if(old_set == 'Launch Parties'):
     return '%s (Launch Foil)' % old_name, 'Promotional'
+  if(old_set == 'Strixhaven: School of Mages' and '//' in old_name):
+    return old_name[:old_name.index(' // ')], old_set
   return db_name_to_ck_name(old_name), db_set_to_ck_set(old_set, card_number, set_info)
 
 def db_set_to_ck_set(old_set, card_number, set_info):

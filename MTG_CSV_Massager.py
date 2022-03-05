@@ -345,6 +345,7 @@ def search_for_value(csv_fields, filtered_card_data):
     with open('%s/value_output.csv' % OUTPUT_FILE_DIRECTORY_NAME, 'w') as csvfile_writer:
         csvwriter = csv.writer(csvfile_writer)
         csvwriter.writerows(value_card_data)
+        csvwriter.writerows(cards_with_no_data)
         info_print('Successfully wrote %s' % '%s/value_output.csv' % OUTPUT_FILE_DIRECTORY_NAME)  
 
     
